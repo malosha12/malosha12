@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mfumo wa Mapato na Malosha</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            background: #f7f7f7;
+            margin: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .user-section {
+            text-align: right;
+            margin-bottom: 20px;
+        }
+
+        #usernameInput {
+            padding: 8px;
+            width: 200px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        #saveUsernameBtn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #displayUsername {
+            color: #2c3e50;
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+
+        .header {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+
+        .balance-box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        button {
+            background: #27ae60;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #219a52;
+        }
+
+        .transaction-list {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+
+        .transaction-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            align-items: center;
+        }
+
+        .income { color: #2ecc71; }
+        .expense { color: #e74c3c; }
+        .category-malosha { border-left: 4px solid #dc3545; }
+        .category-nyingine { border-left: 4px solid #ffc107; }
+
+        .summary {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+            gap: 15px;
+        }
+
+        .summary-box {
+            padding: 15px;
+            border-radius: 5px;
+            width: 100%;
+            text-align: center;
+        }
+
+        #totalIncome { background: #d5f5e3; }
+        #totalExpense { background: #fadbd8; }
+        #balance { background: #d6eaf8; }
+
+        #financeChart {
+            margin-top: 30px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        #categoryGroup {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="user-section">
+            <input type="text" id="usernameInput" placeholder="sahamani andika jina lako">
+            <button id="saveUsernameBtn" onclick="saveUsername()">Hifadhi Jina</button>
+            <div id="displayUsername"></div>
+        </div>
+
+        <h1 class="header">MALOSHA EXPENSES APP</h1>
+        
+        <div class="balance-box">
+            <h2>Salio Lako: <span id="balanceAmount">0 TZS</span></h2>
+        </div>
+
+        <div class="summary">
+            <div class="summary-box" id="totalIncome">
+                <h3>Jumla ya Mapato</h3>
+                <p id="incomeTotal">0 TZS</p>
+            </div>
+            <div class="summary-box" id="totalExpense">
+                <h3>Jumla ya Matumizi</h3>
+                <p id="expenseTotal">0 TZS</p>
+            </div>
+        </div>
+
+        <form id="transactionForm">
+            <div class="form-group">
+                <input type="text" id="title" placeholder="Maelezo (Mfano: Malipo ya Chumba)" required>
+            </div>
+            <div class="form-group">
+                <input type="number" id="amount" placeholder="Kiasi (TZS)" required>
+            </div>
+            <div class="form-group">
+                <select id="type" onchange="toggleCategory()">
+                    <option value="income">Mapato</option>
+                    <option value="expense">Matumizi</option>
+                </select>
+            </div>
+            <div class="form-group" id="categoryGroup">
+                <select id="category">
+                    <option value="malosha">Malosha</option>
+                    <option value="nyingine">Nyingine</option>
+                </select>
+            </div>
+            <button type="submit">Ongeza</button>
+        </form>
+
+        <div class="transaction-list">
+            <h3>HISTORY YA MAPATO NA MATUMIZI YAKO </h3>
+            <div id="transactions"></div>
+        </div>
+
+        <canvas id="financeChart"></canvas>
+    </div>
+
+    <script>
+        let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+        const ctx = document.getElementById('financeChart').getContext('2d');
+        let financeChart;
+
+        // Hifadhi jina la mtumiaji
+        function saveUsername() {
+            const username = document.getElementById('usernameInput').value.trim();
+            if(username) {
+                localStorage.setItem('username', username);
+                displaySavedUsername();
+                alert('Jina limehifadhiwa!');
+            }
+        }
+
+        function displaySavedUsername() {
+            const savedUsername = localStorage.getItem('username');
+            const displayElement = document.getElementById('displayUsername');
+            if(savedUsername) {
+                displayElement.innerHTML = `karibu sana , <strong>${savedUsername}</strong>!`;
+                document.getElementById('usernameInput').value = '';
+            }
+        }
+
+        // Sasisha chati yenye asilimia
+        function updateChart() {
+            const incomeTotal = getTotalIncome();
+            const expenseTotal = getTotalExpense();
+            const jumla = incomeTotal + expenseTotal;
+            
+            // Hesabu asilimia
+            const incomeAsilimia = jumla === 0 ? 0 : Math.round((incomeTotal / jumla) * 100);
+            const expenseAsilimia = jumla === 0 ? 0 : Math.round((expenseTotal / jumla) * 100);
+
+            if(financeChart) financeChart.destroy();
+            
+            financeChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: [
+                        `Mapato#2600ff (${incomeAsilimia}%)`,
+                        `Matumizi (${expenseAsilimia}%)`
+                    ],
+                    datasets: [{
+                        data: [incomeTotal, expenseTotal],
+                        backgroundColor: ['#2ecc71', '#e74c3c'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { 
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 15,
+                                padding: 15
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const asilimia = context.dataset.data[context.dataIndex] === 0 ? 
+                                        0 : 
+                                        Math.round((value / jumla) * 100);
+                                    return ` ${context.label}: ${value.toLocaleString()} TZS (${asilimia}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function toggleCategory() {
+            document.getElementById('categoryGroup').style.display = 
+                document.getElementById('type').value === 'expense' ? 'block' : 'none';
+        }
+
+        function updateTotals() {
+            const totalIncome = getTotalIncome();
+            const totalExpense = getTotalExpense();
+            const balance = totalIncome - totalExpense;
+
+            document.getElementById('incomeTotal').textContent = `${totalIncome.toLocaleString()} TZS`;
+            document.getElementById('expenseTotal').textContent = `${totalExpense.toLocaleString()} TZS`;
+            document.getElementById('balanceAmount').textContent = `${balance.toLocaleString()} TZS`;
+            document.getElementById('balanceAmount').style.color = balance >= 0 ? '#2ecc71' : '#e74c3c';
+
+            localStorage.setItem('transactions', JSON.stringify(transactions));
+            updateChart();
+        }
+
+        function getTotalIncome() {
+            return transactions
+                .filter(t => t.type === 'income')
+                .reduce((sum, t) => sum + t.amount, 0);
+        }
+
+        function getTotalExpense() {
+            return transactions
+                .filter(t => t.type === 'expense')
+                .reduce((sum, t) => sum + t.amount, 0);
+        }
+
+        function addTransaction(e) {
+            e.preventDefault();
+            
+            const transaction = {
+                id: Date.now(),
+                title: document.getElementById('title').value.trim(),
+                amount: parseFloat(document.getElementById('amount').value),
+                type: document.getElementById('type').value,
+                category: document.getElementById('type').value === 'expense' ? 
+                    document.getElementById('category').value : null,
+                date: new Date().toLocaleDateString('sw-TZ')
+            };
+
+            if(!transaction.title || !transaction.amount) {
+                alert('Tafadhali jaza sehemu zote!');
+                return;
+            }
+
+            transactions.push(transaction);
+            renderTransactions();
+            updateTotals();
+            document.getElementById('transactionForm').reset();
+            toggleCategory();
+        }
+
+        function renderTransactions() {
+            const transactionsDiv = document.getElementById('transactions');
+            transactionsDiv.innerHTML = '';
+            
+            transactions.forEach(transaction => {
+                const div = document.createElement('div');
+                div.className = `transaction-item ${transaction.type} ${
+                    transaction.category ? 'category-' + transaction.category : ''
+                }`;
+                
+                div.innerHTML = `
+                    <div style="flex: 2">
+                        ${transaction.title}
+                        ${transaction.category ? 
+                            `<small>(${transaction.category})</small>` : ''}
+                    </div>
+                    <div style="flex: 1">${transaction.amount.toLocaleString()} TZS</div>
+                    <div style="flex: 1">${transaction.date}</div>
+                    <button onclick="deleteTransaction(${transaction.id})" style="flex: 0.5">Futa</button>
+                `;
+                transactionsDiv.appendChild(div);
+            });
+        }
+
+        function deleteTransaction(id) {
+            transactions = transactions.filter(t => t.id !== id);
+            renderTransactions();
+            updateTotals();
+        }
+
+        // Chaguo-msingi
+        document.addEventListener('DOMContentLoaded', () => {
+            displaySavedUsername();
+            renderTransactions();
+            updateTotals();
+        });
+
+        document.getElementById('transactionForm').addEventListener('submit', addTransaction);
+    </script>
+</body>
+</html>
